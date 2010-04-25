@@ -18,7 +18,11 @@
 #include <mios32.h>
 
 #include <string.h>
+
+extern "C" {
 #include <ff.h>
+#include <diskio.h>
+}
 
 #include "app.h"
 #include <FreeRTOS.h>
@@ -38,11 +42,11 @@
 
 // FatFs variables
 static FATFS fs; // Work area (file system object) for logical drives
-static u8 line_buffer[100];
-static u8 dir_path[MAX_PATH];
+static char line_buffer[100];
+static char dir_path[MAX_PATH];
 static u8 tmp_buffer[_MAX_SS]; //_MAX_SS
 static u16 line_ix;
-static u8 disk_label[12];
+static char disk_label[12];
 static FIL fsrc, fdst; // File handles for copy routine.
 
 xSemaphoreHandle xSDCardSemaphore;
@@ -70,7 +74,7 @@ void APP_Init(void)
   
   // install the callback function which is called on incoming characters
   // from MIOS Terminal
-  MIOS32_MIDI_DebugCommandCallback_Init(APP_TERMINAL_Parse);
+  MIOS32_MIDI_DebugCommandCallback_Init((void *)&APP_TERMINAL_Parse);
   
   // clear line buffer
   line_buffer[0] = 0;
@@ -111,11 +115,11 @@ s32 SDCARD_Mount(void)
   }
 
   // Get volume label from base sector  
-  if(disk_read(0, &dir.fs->win, dir.fs->dirbase,  1) != 0){
+  if(disk_read(0, (BYTE *)&dir.fs->win, dir.fs->dirbase,  1) != 0){
     DEBUG_MSG("Couldn't read directory sector...\n");
     return -1;   
   }  
-  strncpy( disk_label, dir.fs->win, 11 );
+  strncpy( disk_label, (char *)dir.fs->win, 11 );
   
   return 0;
 }  
@@ -310,7 +314,7 @@ void APP_MIDI_NotifyPackage(mios32_midi_port_t port, mios32_midi_package_t midi_
 				   
 	  // print messages on LCD
       MIOS32_LCD_CursorSet(0, 0); // X, Y
-	  MIOS32_LCD_PrintFormattedString("C4 %s  %s  %s\       ",
+	  MIOS32_LCD_PrintFormattedString("C4 %s  %s  %s\\       ",
 			       message_type,
 				   C4_element,
 				   C4_turn_dir);
@@ -613,7 +617,7 @@ void fullpath(char *source, char*dest)
 
 void SDCARD_CD(char *directory)
 {
-  u8 new_path[MAX_PATH];
+  char new_path[MAX_PATH];
   DIR dir;
   fullpath(directory,(char *)&new_path);
   if((f_opendir(&dir, new_path)) != FR_OK ) {
@@ -626,7 +630,7 @@ void SDCARD_CD(char *directory)
 
 void SDCARD_Delete(char *directory)
 {
-  u8 new_path[MAX_PATH];
+  char new_path[MAX_PATH];
   fullpath(directory,(char *)&new_path);
   if((f_unlink(new_path)) != FR_OK ) {
     DEBUG_MSG("The system cannot find the file/dir specified");
@@ -638,7 +642,7 @@ void SDCARD_Delete(char *directory)
 
 void SDCARD_Mkdir(char *directory)
 {
-  u8 new_path[MAX_PATH];
+  char new_path[MAX_PATH];
   fullpath(directory,(char *)&new_path);
   SDCARD_Messages(f_mkdir(new_path));
   return;
@@ -653,8 +657,8 @@ void SDCARD_Pwd(void)
 
 void SDCARD_Rename(char* source, char* dest)
 {  
-  u8 new_source[MAX_PATH];
-  u8 new_dest[MAX_PATH];
+  char new_source[MAX_PATH];
+  char new_dest[MAX_PATH];
 
   fullpath(source,(char *)&new_source);
   fullpath(dest,(char *)&new_dest);
@@ -669,8 +673,8 @@ void SDCARD_Copy(char* source, char* dest)
 
   FRESULT res;
   s32 status = 0;
-  u8 new_source[MAX_PATH];
-  u8 new_dest[MAX_PATH];
+  char new_source[MAX_PATH];
+  char new_dest[MAX_PATH];
   
   fullpath(source,(char *)&new_source);
   fullpath(dest,(char *)&new_dest);
@@ -715,13 +719,13 @@ void SDCARD_Copy(char* source, char* dest)
 }
 
 
-void SDCARD_Benchmark(num_sectors)
+void SDCARD_Benchmark(u32 num_sectors)
 {
 
   FRESULT res;
   s32 status = 0;
-  u8 source[MAX_PATH];
-  u8 dest[MAX_PATH];
+  char source[MAX_PATH];
+  char dest[MAX_PATH];
   strcpy(source,"/benchmrk.tmp");
   strcpy(dest,"/benchmrk.cpy");
   int f;
@@ -827,8 +831,7 @@ void SDCARD_ReadFile(char* source)
 {
   FRESULT res;
   s32 status = 0;
-  u8 new_source[MAX_PATH];
-  char display="";
+  char new_source[MAX_PATH];
   //u8 new_dest[MAX_PATH];
   
   fullpath(source,(char *)&new_source);
@@ -869,7 +872,7 @@ void SDCARD_ReadFile(char* source)
 		      DEBUG_MSG("%c ", tmp_buffer[loop]);
 		  }
 		
-		  DEBUG_MSG(" -- %d\n", strlen(tmp_buffer));
+	  DEBUG_MSG(" -- %d\n", strlen((char *)tmp_buffer));
        num_bytes += successcount_wr;
     }
   } while( status==0 && successcount > 0 );
