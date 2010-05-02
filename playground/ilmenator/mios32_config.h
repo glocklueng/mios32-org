@@ -11,7 +11,7 @@
 #define _MIOS32_CONFIG_H
 
 // The boot message which is print during startup and returned on a SysEx query
-#define MIOS32_LCD_BOOT_MSG_LINE1 "MIDIbox C4 v0.02c (2010-04-24)"
+#define MIOS32_LCD_BOOT_MSG_LINE1 "MIDIbox C4 v0.03 (2010-05-01)"
 #define MIOS32_LCD_BOOT_MSG_LINE2 "(C) 2010 ilmenator"
 
 // FatFs configuration: support long filenames

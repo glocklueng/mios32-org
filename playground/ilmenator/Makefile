@@ -18,11 +18,9 @@ THUMB_SOURCE    =
 
 THUMB_CPP_SOURCE = app.cpp \
                 tinyxml.cpp \
-				#tinyxml.h \
 				tinyxmlerror.cpp \
 				tinyxmlparser.cpp \
-				tinystr.cpp\
-				#tinystr.h 
+				tinystr.cpp
 
 # (following source stubs not relevant for Cortex M3 derivatives)
 THUMB_AS_SOURCE =

@@ -28,6 +28,9 @@ extern "C" {
 #include <FreeRTOS.h>
 #include <semphr.h>
 
+#include <tinyxml.h>
+//#include <tinystr.h>
+
 /////////////////////////////////////////////////////////////////////////////
 // for optional debugging messages via MIDI
 // should be enabled for this application!
@@ -60,7 +63,7 @@ xSemaphoreHandle xSDCardSemaphore;
 /////////////////////////////////////////////////////////////////////////////
 void APP_Init(void)
 {
-  // initialize all LEDs
+  // initialize +all LEDs
   MIOS32_BOARD_LED_Init(0xffffffff);
   
   // send boot message to Mackie C4 Pro display
@@ -368,6 +371,129 @@ void APP_AIN_NotifyChange(u32 pin, u32 pin_value)
 {
 }
 
+
+// ----------------------------------------------------------------------
+// STDOUT dump and indenting utility functions
+// ----------------------------------------------------------------------
+const unsigned int NUM_INDENTS_PER_SPACE=2;
+
+const char * getIndent( unsigned int numIndents )
+{
+	static const char * pINDENT="                                      + ";
+	static const unsigned int LENGTH=strlen( pINDENT );
+	unsigned int n=numIndents*NUM_INDENTS_PER_SPACE;
+	if ( n > LENGTH ) n = LENGTH;
+
+	return &pINDENT[ LENGTH-n ];
+}
+
+// same as getIndent but no "+" at the end
+const char * getIndentAlt( unsigned int numIndents )
+{
+	static const char * pINDENT="                                        ";
+	static const unsigned int LENGTH=strlen( pINDENT );
+	unsigned int n=numIndents*NUM_INDENTS_PER_SPACE;
+	if ( n > LENGTH ) n = LENGTH;
+
+	return &pINDENT[ LENGTH-n ];
+}
+
+int dump_attribs_to_stdout(TiXmlElement* pElement, unsigned int indent)
+{
+	if ( !pElement ) return 0;
+
+	TiXmlAttribute* pAttrib=pElement->FirstAttribute();
+	int i=0;
+	int ival;
+	double dval;
+	const char* pIndent=getIndent(indent);
+	printf("\n");
+	while (pAttrib)
+	{
+		printf( "%s%s: value=[%s]", pIndent, pAttrib->Name(), pAttrib->Value());
+
+		if (pAttrib->QueryIntValue(&ival)==TIXML_SUCCESS)    printf( " int=%d", ival);
+		if (pAttrib->QueryDoubleValue(&dval)==TIXML_SUCCESS) printf( " d=%1.1f", dval);
+		printf( "\n" );
+		i++;
+		pAttrib=pAttrib->Next();
+	}
+	return i;	
+}
+
+void dump_to_stdout( TiXmlNode* pParent, unsigned int indent = 0 )
+{
+	if ( !pParent ) return;
+
+	TiXmlNode* pChild;
+	TiXmlText* pText;
+	int t = pParent->Type();
+	printf( "%s", getIndent(indent));
+	int num;
+
+	switch ( t )
+	{
+	case TiXmlNode::TINYXML_DOCUMENT:
+		printf( "Document" );
+		break;
+
+	case TiXmlNode::TINYXML_ELEMENT:
+		printf( "Element [%s]", pParent->Value() );
+		num=dump_attribs_to_stdout(pParent->ToElement(), indent+1);
+		switch(num)
+		{
+			case 0:  printf( " (No attributes)"); break;
+			case 1:  printf( "%s1 attribute", getIndentAlt(indent)); break;
+			default: printf( "%s%d attributes", getIndentAlt(indent), num); break;
+		}
+		break;
+
+	case TiXmlNode::TINYXML_COMMENT:
+		printf( "Comment: [%s]", pParent->Value());
+		break;
+
+	case TiXmlNode::TINYXML_UNKNOWN:
+		printf( "Unknown" );
+		break;
+
+	case TiXmlNode::TINYXML_TEXT:
+		pText = pParent->ToText();
+		printf( "Text: [%s]", pText->Value() );
+		break;
+
+	case TiXmlNode::TINYXML_DECLARATION:
+		printf( "Declaration" );
+		break;
+	default:
+		break;
+	}
+	printf( "\n" );
+	for ( pChild = pParent->FirstChild(); pChild != 0; pChild = pChild->NextSibling()) 
+	{
+		dump_to_stdout( pChild, indent+1 );
+	}
+}
+
+
+// load the named file and dump its structure to STDOUT
+void dump_to_stdout(const char* pFilename)
+{
+	TiXmlDocument doc(pFilename);
+	bool loadOkay = doc.LoadFile();
+	if (loadOkay)
+	{
+		printf("\n%s:\n", pFilename);
+		dump_to_stdout( &doc ); // defined later in the tutorial
+	}
+	else
+	{
+		printf("Failed to load file \"%s\"\n", pFilename);
+	}
+}
+
+
+
+
 void SDCARD_Read_CID(void)
 {
   int status = 0;
@@ -445,7 +571,7 @@ void SDCARD_Read_CSD(void)
 void SDCARD_Messages(FRESULT res)
 {
  switch (res){
-    case FR_OK:                         DEBUG_MSG("Operation completed successfully\n");break;
+    case FR_OK:                 DEBUG_MSG("Operation completed successfully\n");break;
     case FR_INVALID_DRIVE:      DEBUG_MSG("Invalid Drive\n");break;
     case FR_NOT_READY:          DEBUG_MSG("Drive not ready\n");break;
     case FR_NOT_ENABLED:        DEBUG_MSG("Drive has no work area\n");break;
@@ -454,11 +580,11 @@ void SDCARD_Messages(FRESULT res)
     case FR_NO_PATH:            DEBUG_MSG("Could not find the path.\n");break;
     case FR_INVALID_NAME:       DEBUG_MSG("The path name is invalid.\n");break;
     case FR_DENIED:             DEBUG_MSG("Directory table or disk full.\n");break;
-    case FR_EXIST:                      DEBUG_MSG("A file or directory with the same name already exists.\n");break;
-    case FR_WRITE_PROTECTED:DEBUG_MSG("The drive is write protected.\n");break;
+    case FR_EXIST:              DEBUG_MSG("A file or directory with the same name already exists.\n");break;
+    case FR_WRITE_PROTECTED:    DEBUG_MSG("The drive is write protected.\n");break;
     case FR_INT_ERR:            DEBUG_MSG("FAR structure or internal error.\n");break;
     case FR_NO_FILESYSTEM:      DEBUG_MSG("The drive does not contain a valid FAT12/16/32 volume.\n");break;
-    default:                            DEBUG_MSG("Unknown Error\n"); 
+    default:                    DEBUG_MSG("Unknown Error\n"); 
   }
 }  
 
@@ -842,6 +968,8 @@ void SDCARD_ReadFile(char* source)
   } 
   
   //DEBUG_MSG("Copying %s to %s\n",new_source,new_dest);
+  dump_to_stdout("korg.xml");
+  //return 0;
 
   mios32_sys_time_t t;
   t.seconds=0;
